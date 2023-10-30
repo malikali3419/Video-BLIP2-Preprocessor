@@ -12,7 +12,7 @@ from torchvision import transforms
 from tqdm import tqdm
 from PIL import Image
 from decord import VideoReader, cpu
-from transformers import Blip2Processor, Blip2ForConditionalGeneration
+
 
 decord.bridge.set_bridge('torch')
 
@@ -78,20 +78,17 @@ class PreProcessVideos:
     def build_video_data(self, frame_index: int, prompt: str):
         return {
             "frame_index": frame_index,
-            "prompt": prompt
+            "prompt": prompt[0]
         }
 
     # Load BLIP2 for processing
     def load_blip(self):
         print("Loading BLIP2")
-
-        processor = Blip2Processor.from_pretrained("Salesforce/blip2-opt-2.7b")
-        model = Blip2ForConditionalGeneration.from_pretrained(
-            "Salesforce/blip2-opt-2.7b", torch_dtype=torch.float16
+        from lavis.models import load_model_and_preprocess
+        model, self.processor, _ = load_model_and_preprocess(
+        name="blip2_opt", model_type="caption_coco_opt2.7b", is_eval=True, device=self.device
         )
         model.to(self.device)
-
-        self.processor = processor
         self.blip_model = model
 
     # Process the frames to get the length and image.
@@ -115,16 +112,8 @@ class PreProcessVideos:
         return range(self.prompt_amount) if self.random_start_frame else derterministic
 
     def process_blip(self, image: Image):
-        inputs = self.processor(images=image, return_tensors="pt").to(self.device, torch.float16)
-        generated_ids = self.blip_model.generate(
-                **inputs, 
-                num_beams=self.beam_amount, 
-                min_length=self.min_length, 
-                max_length=self.max_length
-            )
-        generated_text = self.processor.batch_decode(
-            generated_ids, 
-            skip_special_tokens=True)[0].strip()
+        input_img = self.processor["eval"](image).unsqueeze(0).to(self.device)
+        generated_text = self.blip_model.generate({"image": input_img})
         
         return generated_text
     
