@@ -80,7 +80,7 @@ class PreProcessVideos:
     def build_video_data(self, frame_index: int, prompt: str):
         return {
             "frame_index": frame_index,
-            "prompt": prompt
+            "prompt": prompt[0]
         }
 
     # Load BLIP2 for processing
